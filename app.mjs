@@ -10,7 +10,7 @@ async function parcourirRepertoireNonRecursif(chemin) {
         const repActuel = pile.pop(); // Récupérer le dernier répertoire de la pile
 
         // Lire le contenu du répertoire
-        const fichiers = fs.readdirSync(repActuel, { withFileTypes: true });
+        const fichiers = await fs.readdir(repActuel, { withFileTypes: true });
 
         // Parcourir chaque fichier/dossier
         for (const entree of fichiers) {
@@ -21,7 +21,7 @@ async function parcourirRepertoireNonRecursif(chemin) {
                 pile.push(cheminActuel);
             } else if (entree.isFile() && cheminActuel.endsWith('.json')) {
                 // Si c'est un fichier JSON, lire son contenu et analyser
-                const data = fs.readFileSync(cheminActuel);
+                const data = await fs.readFile(cheminActuel);
 
                 try {
                     const objetJSON = JSON.parse(data);
@@ -42,19 +42,28 @@ async function parcourirRepertoireNonRecursif(chemin) {
 
 // Exemple d'utilisation : spécifiez le chemin du répertoire à parcourir
 const cheminDuRepertoire = process.argv[2] ||'./stores' // Par défaut, le répertoire 'stores' dans le répertoire actuel;
-if (!fs.existsSync(path.resolve(cheminDuRepertoire))) {
-    console.error('The provided path does not exist.');
+try {
+    await fs.promises.access(cheminDuRepertoire, fs.constants.R_OK | fs.constants.X_OK);
+} catch (erreur) {
+    console.error('Le répertoire spécifié n\'existe pas ou n\'est pas accessible en lecture.');
     process.exit(1);
 }
+
 parcourirRepertoireNonRecursif(cheminDuRepertoire)
-    .then(somme => {
+    .then(async (somme) => {
         const filePath = 'salesTotals/total.txt';
         const data = `Total at 22/03/2024: ${somme} €\n`;
-        if (fs.existsSync(filePath)) {
+
+        try {
+            await fs.access(filePath);
             console.log('The file already exists.');
-        } else {
-            fs.openSync(filePath, 'a+');
-            console.log('The file has been created.');
+        } catch (error) {
+            await fs.writeFile(filePath, '', (err) => {
+                if (err) {
+                    console.error('Error while creating the file', err);
+                }
+                console.log('The file has been created.');
+            })
         }
         fs.appendFileSync(filePath, data);
         console.log('Le total des ventes a été enregistré dans le fichier total.txt');
